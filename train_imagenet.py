@@ -18,7 +18,6 @@ import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from model import NetworkImageNet as Network
 
-
 parser = argparse.ArgumentParser("training imagenet")
 parser.add_argument('--workers', type=int, default=32, help='number of workers to load dataset')
 parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
@@ -41,7 +40,6 @@ parser.add_argument('--lr_scheduler', type=str, default='linear', help='lr sched
 parser.add_argument('--tmp_data_dir', type=str, default='/tmp/cache/', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 
-
 args, unparsed = parser.parse_known_args()
 
 args.save = '{}eval-{}-{}'.format(args.save, args.note, time.strftime("%Y%m%d-%H%M%S"))
@@ -49,12 +47,13 @@ utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
-    format=log_format, datefmt='%m/%d %I:%M:%S %p')
+                    format=log_format, datefmt='%m/%d %I:%M:%S %p')
 fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
 CLASSES = 1000
+
 
 class CrossEntropyLabelSmooth(nn.Module):
 
@@ -71,6 +70,7 @@ class CrossEntropyLabelSmooth(nn.Module):
         loss = (-targets * log_probs).mean(0).sum()
         return loss
 
+
 def main():
     if not torch.cuda.is_available():
         logging.info('No GPU device available')
@@ -78,15 +78,15 @@ def main():
     np.random.seed(args.seed)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
-    cudnn.enabled=True
+    cudnn.enabled = True
     torch.cuda.manual_seed(args.seed)
     logging.info("args = %s", args)
     logging.info("unparsed_args = %s", unparsed)
-    num_gpus = torch.cuda.device_count()   
+    num_gpus = torch.cuda.device_count()
     genotype = eval("genotypes.%s" % args.arch)
     print('---------Genotype---------')
     logging.info(genotype)
-    print('--------------------------') 
+    print('--------------------------')
     model = Network(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
     if num_gpus > 1:
         model = nn.DataParallel(model)
@@ -105,7 +105,7 @@ def main():
         args.learning_rate,
         momentum=args.momentum,
         weight_decay=args.weight_decay
-        )
+    )
     data_dir = os.path.join(args.tmp_data_dir, 'imagenet')
     traindir = os.path.join(data_dir, 'train')
     validdir = os.path.join(data_dir, 'val')
@@ -138,7 +138,7 @@ def main():
     valid_queue = torch.utils.data.DataLoader(
         valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
 
-#    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
+    #    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     best_acc_top1 = 0
     best_acc_top5 = 0
@@ -180,18 +180,20 @@ def main():
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'best_acc_top1': best_acc_top1,
-            'optimizer' : optimizer.state_dict(),
-            }, is_best, args.save)        
-        
+            'optimizer': optimizer.state_dict(),
+        }, is_best, args.save)
+
+
 def adjust_lr(optimizer, epoch):
     # Smaller slope for the last 5 epochs because lr * 1/250 is relatively large
-    if args.epochs -  epoch > 5:
+    if args.epochs - epoch > 5:
         lr = args.learning_rate * (args.epochs - 5 - epoch) / (args.epochs - 5)
     else:
         lr = args.learning_rate * (args.epochs - epoch) / ((args.epochs - 5) * 5)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
-    return lr        
+    return lr
+
 
 def train(train_queue, model, criterion, optimizer):
     objs = utils.AvgrageMeter()
@@ -209,7 +211,7 @@ def train(train_queue, model, criterion, optimizer):
         loss = criterion(logits, target)
         if args.auxiliary:
             loss_aux = criterion(logits_aux, target)
-            loss += args.auxiliary_weight*loss_aux
+            loss += args.auxiliary_weight * loss_aux
 
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
@@ -229,8 +231,8 @@ def train(train_queue, model, criterion, optimizer):
             else:
                 duration = end_time - start_time
                 start_time = time.time()
-            logging.info('TRAIN Step: %03d Objs: %e R1: %f R5: %f Duration: %ds BTime: %.3fs', 
-                                    step, objs.avg, top1.avg, top5.avg, duration, batch_time.avg)
+            logging.info('TRAIN Step: %03d Objs: %e R1: %f R5: %f Duration: %ds BTime: %.3fs',
+                         step, objs.avg, top1.avg, top5.avg, duration, batch_time.avg)
 
     return top1.avg, objs.avg
 
@@ -262,10 +264,11 @@ def infer(valid_queue, model, criterion):
             else:
                 duration = end_time - start_time
                 start_time = time.time()
-            logging.info('VALID Step: %03d Objs: %e R1: %f R5: %f Duration: %ds', step, objs.avg, top1.avg, top5.avg, duration)
+            logging.info('VALID Step: %03d Objs: %e R1: %f R5: %f Duration: %ds', step, objs.avg, top1.avg, top5.avg,
+                         duration)
 
     return top1.avg, top5.avg, objs.avg
 
 
 if __name__ == '__main__':
-    main() 
+    main()
